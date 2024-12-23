@@ -2,3 +2,6 @@
 name = "sokoban"
 version = "0.1.0"
 edition = "2021"
+
+[dependencies]
+ggez = "0.9.3"
