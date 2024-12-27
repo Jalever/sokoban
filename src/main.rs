@@ -1,7 +1,15 @@
-use ggez::{conf, event, Context, GameResult};
+use ggez::{
+    conf, event,
+    graphics::{self, DrawParam, Image},
+    Context, GameResult,
+};
+use glam::Vec2;
 use hecs::{Entity, World};
 use std::path;
 
+const TILE_WIDTH: f32 = 32.0;
+
+#[allow(dead_code)]
 struct Game {
     world: World,
 }
@@ -11,7 +19,10 @@ impl event::EventHandler<ggez::GameError> for Game {
         Ok(())
     }
 
-    fn draw(&mut self, _context: &mut Context) -> GameResult {
+    fn draw(&mut self, context: &mut Context) -> GameResult {
+        {
+            run_rendering(&self.world, context);
+        }
         Ok(())
     }
 }
@@ -69,6 +80,7 @@ pub fn create_box_player(world: &mut World, position: Position) -> Entity {
         Renderable {
             path: "/images/box_spot.png".to_string(),
         },
+        BoxSpot {},
     ))
 }
 
@@ -78,7 +90,51 @@ pub fn create_player(world: &mut World, position: Position) -> Entity {
         Renderable {
             path: "/images/player.png".to_string(),
         },
+        Player {},
     ))
+}
+
+pub fn run_rendering(world: &World, context: &mut Context) {
+    let mut canvas =
+        graphics::Canvas::from_frame(context, graphics::Color::from([0.95, 0.95, 0.95, 1.0]));
+    let mut query = world.query::<(&Position, &Renderable)>();
+    let mut rendering_data: Vec<(Entity, (&Position, &Renderable))> = query.into_iter().collect();
+    rendering_data.sort_by_key(|&k| k.1 .0.z);
+    for (_, (position, renderable)) in rendering_data.iter() {
+        let image = Image::from_path(context, renderable.path.clone()).unwrap();
+        let x = position.x as f32 * TILE_WIDTH;
+        let y = position.y as f32 * TILE_WIDTH;
+        let draw_params = DrawParam::new().dest(Vec2::new(x, y));
+        canvas.draw(&image, draw_params);
+    }
+    canvas.finish(context).expect("expect to preview.");
+}
+
+pub fn initialize_level(world: &mut World) {
+    create_player(
+        world,
+        Position {
+            x: 0,
+            y: 0,
+            z: 0, // we will get the z from the factory functions
+        },
+    );
+    create_wall(
+        world,
+        Position {
+            x: 1,
+            y: 0,
+            z: 0, // we will get the z from the factory functions
+        },
+    );
+    create_box(
+        world,
+        Position {
+            x: 2,
+            y: 0,
+            z: 0, // we will get the z from the factory functions
+        },
+    );
 }
 
 pub fn main() -> GameResult {

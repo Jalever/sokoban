@@ -2198,6 +2198,7 @@ name = "sokoban"
 version = "0.1.0"
 dependencies = [
  "ggez",
+ "glam",
  "hecs",
 ]
 
