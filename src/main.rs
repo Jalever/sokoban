@@ -10,6 +10,25 @@ use std::path;
 const TILE_WIDTH: f32 = 32.0;
 
 #[allow(dead_code)]
+pub struct Position {
+    x: u8,
+    y: u8,
+    z: u8,
+}
+
+#[allow(dead_code)]
+pub struct Renderable {
+    path: String,
+}
+
+pub struct Wall {}
+
+pub struct Player {}
+
+pub struct Box {}
+
+pub struct BoxSpot {}
+
 struct Game {
     world: World,
 }
@@ -27,23 +46,27 @@ impl event::EventHandler<ggez::GameError> for Game {
     }
 }
 
-#[derive(Clone, Copy)]
-pub struct Position {
-    x: u8,
-    y: u8,
-    z: u8,
+pub fn run_rendering(world: &World, context: &mut Context) {
+    let mut canvas =
+        graphics::Canvas::from_frame(context, graphics::Color::from([0.95, 0.95, 0.95, 1.0]));
+    let mut query = world.query::<(&Position, &Renderable)>();
+    let mut rendering_data: Vec<(Entity, (&Position, &Renderable))> = query.into_iter().collect();
+    rendering_data.sort_by_key(|&k| k.1 .0.z);
+    for (_, (position, renderable)) in rendering_data.iter() {
+        let image = Image::from_path(context, renderable.path.clone()).unwrap();
+        let x = position.x as f32 * TILE_WIDTH;
+        let y = position.y as f32 * TILE_WIDTH;
+        let draw_params = DrawParam::new().dest(Vec2::new(x, y));
+        canvas.draw(&image, draw_params);
+    }
+    canvas.finish(context).expect("expected to present");
 }
 
-#[allow(dead_code)]
-pub struct Renderable {
-    path: String,
+pub fn initialize_level(world: &mut World) {
+    create_player(world, Position { x: 0, y: 0, z: 0 });
+    create_wall(world, Position { x: 1, y: 0, z: 0 });
+    create_box(world, Position { x: 2, y: 0, z: 0 });
 }
-
-pub struct Player {}
-
-pub struct Wall {}
-pub struct Box {}
-pub struct BoxSpot {}
 
 pub fn create_wall(world: &mut World, position: Position) -> Entity {
     world.spawn((
@@ -54,7 +77,6 @@ pub fn create_wall(world: &mut World, position: Position) -> Entity {
         Wall {},
     ))
 }
-
 pub fn create_floor(world: &mut World, position: Position) -> Entity {
     world.spawn((
         Position { z: 5, ..position },
@@ -94,84 +116,19 @@ pub fn create_player(world: &mut World, position: Position) -> Entity {
     ))
 }
 
-pub fn run_rendering(world: &World, context: &mut Context) {
-    let mut canvas =
-        graphics::Canvas::from_frame(context, graphics::Color::from([0.95, 0.95, 0.95, 1.0]));
-    let mut query = world.query::<(&Position, &Renderable)>();
-    let mut rendering_data: Vec<(Entity, (&Position, &Renderable))> = query.into_iter().collect();
-    rendering_data.sort_by_key(|&k| k.1 .0.z);
-    for (_, (position, renderable)) in rendering_data.iter() {
-        let image = Image::from_path(context, renderable.path.clone()).unwrap();
-        let x = position.x as f32 * TILE_WIDTH;
-        let y = position.y as f32 * TILE_WIDTH;
-        let draw_params = DrawParam::new().dest(Vec2::new(x, y));
-        canvas.draw(&image, draw_params);
-    }
-    canvas.finish(context).expect("expect to preview.");
-}
-
-pub fn initialize_level(world: &mut World) {
-    const MAP: &str = "
-    N N W W W W W W
-    W W W . . . . W
-    W . . . B . . W
-    W . . . . . . W 
-    W . P . . . . W
-    W . . . . . . W
-    W . . S . . . W
-    W . . . . . . W
-    W W W W W W W W
-    ";
-    load_map(world, MAP.to_string());
-}
-
-pub fn load_map(world: &mut World, map_string: String) {
-    let rows: Vec<&str> = map_string.trim().split('\n').map(|x| x.trim()).collect();
-
-    for (y, row) in rows.iter().enumerate() {
-        let columns: Vec<&str> = row.split(' ').collect();
-        for (x, column) in columns.iter().enumerate() {
-            let position = Position {
-                x: x as u8,
-                y: y as u8,
-                z: 0,
-            };
-            match *column {
-                "." => {
-                    create_floor(world, position);
-                }
-                "W" => {
-                    create_floor(world, position);
-                    create_wall(world, position);
-                }
-                "p" => {
-                    create_floor(world, position);
-                    create_player(world, position);
-                }
-                "B" => {
-                    create_floor(world, position);
-                    create_box(world, position);
-                }
-                "S" => {
-                    create_floor(world, position);
-                    create_box_spot(world, position);
-                }
-                "N" => (),
-                c => panic!("Unrecognized map item: {}", c),
-            }
-        }
-    }
-}
-
 pub fn main() -> GameResult {
-    let world = World::new();
-
-    let context_builder = ggez::ContextBuilder::new("sokoban", "jalever")
-        .window_setup(conf::WindowSetup::default().title("Sokoban"))
+    let mut world = World::new();
+    initialize_level(&mut world);
+    // Create a game context and event loop
+    let context_builder = ggez::ContextBuilder::new("rust_sokoban", "sokoban")
+        .window_setup(conf::WindowSetup::default().title("Rust Sokoban!"))
         .window_mode(conf::WindowMode::default().dimensions(800.0, 600.0))
         .add_resource_path(path::PathBuf::from("./resources"));
 
     let (context, event_loop) = context_builder.build()?;
+
+    // Create the game state
     let game = Game { world };
+    // Run the main event loop
     event::run(context, event_loop, game)
 }
